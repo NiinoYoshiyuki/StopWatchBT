@@ -44,7 +44,7 @@
         .btn-blue { background-color: #4CAF50; }
         .btn-yellow { background-color: #FFC107; color: black; }
         .btn-red { background-color: #F44336; }
-        .delete-button {
+        .delete-button, .edit-button {
             background-color: #f44336;
             color: white;
             border: none;
@@ -52,6 +52,9 @@
             border-radius: 4px;
             cursor: pointer;
             margin-top: 10px;
+        }
+        .edit-button {
+            background-color: #007bff;
         }
         #login-container {
             position: absolute;
@@ -244,6 +247,21 @@
                     infoWindow.close();
                 };
 
+                const showEditForm = () => {
+                    infoWindow.setContent(createEditFormContent(supplier, index));
+                    infoWindow.open({
+                        anchor: marker,
+                        map,
+                        shouldFocus: false,
+                    });
+                    google.maps.event.addListenerOnce(infoWindow, 'domready', function() {
+                        document.getElementById('saveEditButton')?.addEventListener('click', () => {
+                            editSupplier(index);
+                            infoWindow.close();
+                        });
+                    });
+                };
+
                 if (loggedInUser === 'supplier' && loggedInUserEmail === supplier.email) {
                     document.getElementById('blueButton')?.addEventListener('click', () => changeStatus('blue'));
                     document.getElementById('yellowButton')?.addEventListener('click', () => changeStatus('yellow'));
@@ -251,6 +269,7 @@
                 }
                 if (loggedInUser === 'admin') {
                     document.getElementById('deleteButton')?.addEventListener('click', deleteSupplier);
+                    document.getElementById('editButton')?.addEventListener('click', showEditForm);
                 }
                 if (loggedInUser === 'recipient') {
                     const requestButton = document.getElementById('requestButton');
@@ -266,7 +285,7 @@
 
         function createInfoWindowContent(supplier, index) {
             let buttonsHtml = '';
-            let deleteButtonHtml = '';
+            let adminButtonsHtml = '';
             let emailHtml = '';
             let requestButtonHtml = '';
 
@@ -281,7 +300,8 @@
             }
 
             if (loggedInUser === 'admin') {
-                deleteButtonHtml = `
+                adminButtonsHtml = `
+                    <button id="editButton" class="edit-button">編集</button>
                     <button id="deleteButton" class="delete-button">削除</button>
                 `;
                 emailHtml = `<p><strong>メール:</strong> <a href="mailto:${supplier.email}">${supplier.email}</a></p>`;
@@ -294,14 +314,50 @@
             return `
                 <div class="info-window">
                     <h3>${supplier.name}</h3>
-                    <p>${supplier.comment}</p>
-                    <p><strong>提供可能なもの:</strong> ${supplier.supplies.join(", ") || "なし"}</p>
+                    <p><strong>提供可能なもの:</strong> ${supplier.supplies || "なし"}</p>
                     ${emailHtml}
                     ${buttonsHtml}
-                    ${deleteButtonHtml}
+                    ${adminButtonsHtml}
                     ${requestButtonHtml}
                 </div>
             `;
+        }
+
+        function createEditFormContent(supplier, index) {
+            return `
+                <div class="info-window">
+                    <h3>供給者情報を編集</h3>
+                    <label for="edit-name">名前：</label><br>
+                    <input type="text" id="edit-name" value="${supplier.name}"><br>
+                    <label for="edit-email">メールアドレス：</label><br>
+                    <input type="email" id="edit-email" value="${supplier.email}"><br>
+                    <label for="edit-supplies">供給できるもの：</label><br>
+                    <input type="text" id="edit-supplies" value="${supplier.supplies}"><br>
+                    <button id="saveEditButton" class="btn-blue">保存</button>
+                </div>
+            `;
+        }
+
+        function editSupplier(index) {
+            const name = document.getElementById('edit-name').value;
+            const email = document.getElementById('edit-email').value;
+            const supplies = document.getElementById('edit-supplies').value;
+
+            if (!name || !email || !supplies) {
+                alert("名前、メールアドレス、供給できるものをすべて入力してください。");
+                return;
+            }
+
+            const suppliers = JSON.parse(localStorage.getItem('suppliers')) || [];
+            const supplierToEdit = suppliers[index];
+            supplierToEdit.name = name;
+            supplierToEdit.email = email;
+            supplierToEdit.supplies = supplies;
+
+            localStorage.setItem('suppliers', JSON.stringify(suppliers));
+
+            clearMarkers();
+            loadSuppliersFromLocalStorage();
         }
         
         function showRequestInfoWindow(supplier) {
@@ -408,8 +464,8 @@ ${supplier.name}様
                         <input type="email" id="email" placeholder="例: example@example.com"><br><br>
                         <label for="password">パスワード：</label><br>
                         <input type="password" id="password" placeholder="パスワードを設定"><br><br>
-                        <label for="comment">コメント：</label><br>
-                        <textarea id="comment" placeholder="例: 携帯の充電、お湯沸かし可能です。"></textarea><br><br>
+                        <label for="supplies">供給できるもの：</label><br>
+                        <input type="text" id="supplies" placeholder="例: 携帯の充電、お湯"><br><br>
                         <button id="registerButton">登録</button>
                     </div>
                 `
@@ -449,10 +505,10 @@ ${supplier.name}様
             const name = document.getElementById('name').value;
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
-            const comment = document.getElementById('comment').value;
+            const supplies = document.getElementById('supplies').value;
 
-            if (!name || !email || !password || !comment) {
-                alert("名前、メールアドレス、パスワード、コメントをすべて入力してください。");
+            if (!name || !email || !password || !supplies) {
+                alert("名前、メールアドレス、パスワード、供給できるものをすべて入力してください。");
                 return;
             }
 
@@ -462,8 +518,7 @@ ${supplier.name}様
                 email: email,
                 password: password,
                 status: "blue",
-                comment: comment,
-                supplies: ["未設定"]
+                supplies: supplies
             };
 
             const suppliers = JSON.parse(localStorage.getItem('suppliers')) || [];
@@ -576,12 +631,10 @@ ${supplier.name}様
                     document.getElementById('current-user-status').textContent = `${supplier.name}としてログイン中`;
                     success = true;
 
-                    // ここから追加されたコード
                     if (supplier.position) {
                         map.setCenter(supplier.position);
-                        map.setZoom(18); // 適切なズームレベルに調整
+                        map.setZoom(18);
                     }
-                    // ここまで追加されたコード
                 } else {
                     alert('ログイン情報が違います。');
                 }
