@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>災害時共助マップ - 管理者・供給者版</title>
+    <style>
+        #map {
+            height: 100vh;
+            width: 100%;
+        }
+        .info-window {
+            font-size: 14px;
+            width: 250px;
+        }
+        .scrollable-info-window {
+            max-height: 400px;
+            overflow-y: auto;
+            padding-right: 15px;
+        }
+        .info-window h3, .info-window p {
+            margin-top: 0;
+            margin-bottom: 5px;
+        }
+        .info-window input, .info-window textarea {
+            width: 100%;
+            box-sizing: border-box;
+            margin-bottom: 10px;
+        }
+        .status-button-group {
+            display: flex;
+            gap: 5px;
+            margin-top: 10px;
+        }
+        .status-button-group button {
+            flex: 1;
+            padding: 8px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            color: white;
+            font-weight: bold;
+        }
+        .btn-blue { background-color: #4CAF50; }
+        .btn-yellow { background-color: #FFC107; color: black; }
+        .btn-red { background-color: #F44336; }
+        .delete-button {
+            background-color: #f44336;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        #login-container {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 1000;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        #login-container h4 {
+            margin: 0 0 10px 0;
+        }
+        #logout-button {
+            background-color: #555;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    
+    <div id="login-container">
+        <div id="login-form">
+            <h4>ログイン</h4>
+            <label for="password">パスワード:</label>
+            <input type="password" id="password" placeholder="パスワードを入力">
+            <button id="login-button">ログイン</button>
+        </div>
+        <div id="user-info" style="display:none;">
+            <p id="current-user-status"></p>
+            <button id="logout-button">ログアウト</button>
+        </div>
+    </div>
+
+    <script>
+        const googleMapsApiKey = 'AIzaSyDtiRPQOF6YO8D_sGAPH4I1E93J4G3HilA';
+        const adminPassword = 'admin';
+        const supplierPassword = '1234';
+        const recipientPassword = '5678';
+        let map;
+        let markers = [];
+        let loggedInUser = null;
+
+        function initMap() {
+            map = new google.maps.Map(document.getElementById('map'), {
+                center: { lat: 36.170986, lng: 139.310113 },
+                zoom: 15,
+            });
+
+            loadSuppliersFromLocalStorage();
+
+            map.addListener("click", (event) => {
+                if (loggedInUser === 'admin') {
+                    const lat = event.latLng.lat();
+                    const lng = event.latLng.lng();
+                    showRegistrationForm(lat, lng);
+                } else {
+                    alert('新しいマーカーを登録するには管理者としてログインしてください。');
+                }
+            });
+        }
+
+        function createSupplierMarker(supplier, index) {
+            const marker = new google.maps.Marker({
+                position: supplier.position,
+                map: map,
+                title: supplier.name,
+                icon: {
+                    path: google.maps.SymbolPath.CIRCLE,
+                    scale: 10,
+                    fillColor: getStatusColor(supplier.status),
+                    fillOpacity: 1,
+                    strokeWeight: 0,
+                }
+            });
+            
+            markers.push(marker);
+
+            const infoWindow = new google.maps.InfoWindow({
+                content: createInfoWindowContent(supplier, index)
+            });
+
+            marker.addListener("click", () => {
+                infoWindow.setContent(createInfoWindowContent(supplier, index));
+                infoWindow.open({
+                    anchor: marker,
+                    map,
+                    shouldFocus: false,
+                });
+            });
+
+            google.maps.event.addListener(infoWindow, 'domready', function() {
+                const changeStatus = (newStatus) => {
+                    supplier.status = newStatus;
+                    updateSupplierInLocalStorage(supplier, index);
+                    infoWindow.setContent(createInfoWindowContent(supplier, index));
+                    marker.setIcon({
+                        path: google.maps.SymbolPath.CIRCLE,
+                        scale: 10,
+                        fillColor: getStatusColor(newStatus),
+                        fillOpacity: 1,
+                        strokeWeight: 0,
+                    });
+                };
+                
+                const deleteSupplier = () => {
+                    deleteSupplierFromLocalStorage(index);
+                    clearMarkers();
+                    loadSuppliersFromLocalStorage();
+                    infoWindow.close();
+                };
+
+                if (loggedInUser === 'supplier') {
+                    document.getElementById('blueButton')?.addEventListener('click', () => changeStatus('blue'));
+                    document.getElementById('yellowButton')?.addEventListener('click', () => changeStatus('yellow'));
+                    document.getElementById('redButton')?.addEventListener('click', () => changeStatus('red'));
+                }
+                if (loggedInUser === 'admin') {
+                    document.getElementById('deleteButton')?.addEventListener('click', deleteSupplier);
+                }
+                if (loggedInUser === 'recipient') {
+                    const requestButton = document.getElementById('requestButton');
+                    if (requestButton) {
+                        requestButton.addEventListener('click', () => {
+                            infoWindow.close();
+                            showRequestInfoWindow(supplier);
+                        });
+                    }
+                }
+            });
+        }
+
+        function createInfoWindowContent(supplier, index) {
+            let buttonsHtml = '';
+            let deleteButtonHtml = '';
+            let emailHtml = '';
+            let requestButtonHtml = '';
+
+            if (loggedInUser === 'supplier') {
+                buttonsHtml = `
+                    <div class="status-button-group">
+                        <button id="blueButton" class="btn-blue">可能</button>
+                        <button id="yellowButton" class="btn-yellow">若干可能</button>
+                        <button id="redButton" class="btn-red">不可能</button>
+                    </div>
+                `;
+            }
+
+            if (loggedInUser === 'admin') {
+                deleteButtonHtml = `
+                    <button id="deleteButton" class="delete-button">削除</button>
+                `;
+                // 管理者の場合はメールアドレスを表示
+                emailHtml = `<p><strong>メール:</strong> <a href="mailto:${supplier.email}">${supplier.email}</a></p>`;
+            }
+            
+            // 受給者の場合のみリクエストボタンを表示
+            if (loggedInUser === 'recipient') {
+                 requestButtonHtml = `<button id="requestButton" class="btn-blue">リクエスト</button>`;
+            }
+            
+            return `
+                <div class="info-window">
+                    <h3>${supplier.name}</h3>
+                    <p>${supplier.comment}</p>
+                    <p><strong>提供可能なもの:</strong> ${supplier.supplies.join(", ") || "なし"}</p>
+                    ${emailHtml}
+                    ${buttonsHtml}
+                    ${deleteButtonHtml}
+                    ${requestButtonHtml}
+                </div>
+            `;
+        }
+        
+        function showRequestInfoWindow(supplier) {
+            const requestInfoWindow = new google.maps.InfoWindow({
+                content: `
+                    <div class="info-window scrollable-info-window">
+                        <h3>${supplier.name}へリクエスト</h3>
+                        <p>下記情報を入力してリクエストを送信してください。</p>
+                        <label for="requester-name">氏名：</label><br>
+                        <input type="text" id="requester-name" placeholder="氏名" required><br>
+                        <label for="requester-tel">電話番号：</label><br>
+                        <input type="tel" id="requester-tel" placeholder="090-xxxx-xxxx" required><br>
+                        <label for="requester-address">住所：</label><br>
+                        <input type="text" id="requester-address" placeholder="住所" required><br>
+                        <label for="requester-time">希望時間帯：</label><br>
+                        <input type="text" id="requester-time" placeholder="例: 午前中" required><br>
+                        <label for="requester-email">メールアドレス：</label><br>
+                        <input type="email" id="requester-email" placeholder="返信用メールアドレス" required><br>
+                        <button id="send-request-button" class="btn-blue">リクエストを送信</button>
+                    </div>
+                `
+            });
+
+            requestInfoWindow.open({
+                anchor: markers.find(m => m.title === supplier.name),
+                map,
+                shouldFocus: false,
+            });
+
+            google.maps.event.addListenerOnce(requestInfoWindow, 'domready', function() {
+                document.getElementById('send-request-button').addEventListener('click', () => {
+                    const requesterName = document.getElementById('requester-name').value;
+                    const requesterTel = document.getElementById('requester-tel').value;
+                    const requesterAddress = document.getElementById('requester-address').value;
+                    const requesterTime = document.getElementById('requester-time').value;
+                    const requesterEmail = document.getElementById('requester-email').value;
+
+                    if (!requesterName || !requesterTel || !requesterAddress || !requesterTime || !requesterEmail) {
+                        alert("全ての項目を入力してください。");
+                        return;
+                    }
+
+                    const subject = `【災害時共助マップ】${supplier.name}様へのリクエスト`;
+                    const body = `
+${supplier.name}様
+
+災害時共助マップを見て、ご支援をリクエストさせていただきます。
+お手数ですが、ご確認後、ご返信いただけると幸いです。
+
+---
+【リクエスト内容】
+- 氏名：${requesterName}
+- 電話番号：${requesterTel}
+- 住所：${requesterAddress}
+- 希望時間帯：${requesterTime}
+- 返信先メールアドレス：${requesterEmail}
+---
+
+よろしくお願いいたします。
+`;
+
+                    const mailtoLink = `mailto:${supplier.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+                    
+                    window.location.href = mailtoLink;
+                    
+                    requestInfoWindow.close();
+                });
+            });
+        }
+
+        function updateSupplierInLocalStorage(updatedSupplier, index) {
+            const suppliers = JSON.parse(localStorage.getItem('suppliers')) || [];
+            suppliers[index] = updatedSupplier;
+            localStorage.setItem('suppliers', JSON.stringify(suppliers));
+        }
+
+        function deleteSupplierFromLocalStorage(index) {
+            const suppliers = JSON.parse(localStorage.getItem('suppliers')) || [];
+            suppliers.splice(index, 1);
+            localStorage.setItem('suppliers', JSON.stringify(suppliers));
+        }
+
+        function clearMarkers() {
+            for (let i = 0; i < markers.length; i++) {
+                markers[i].setMap(null);
+            }
+            markers = [];
+        }
+
+        function showRegistrationForm(lat, lng) {
+            if (loggedInUser !== 'admin') {
+                alert('新しいマーカーを登録するには管理者としてログインしてください。');
+                return;
+            }
+            
+            const infowindow = new google.maps.InfoWindow({
+                content: `
+                    <div class="info-window">
+                        <h3>分電供給者として登録</h3>
+                        <p>ここに新しいマーカーを登録します。</p>
+                        <label for="name">名前：</label><br>
+                        <input type="text" id="name" placeholder="例: 山田様"><br><br>
+                        <label for="email">メールアドレス：</label><br>
+                        <input type="email" id="email" placeholder="例: example@example.com"><br><br>
+                        <label for="comment">コメント：</label><br>
+                        <textarea id="comment" placeholder="例: 携帯の充電、お湯沸かし可能です。"></textarea><br><br>
+                        <button id="registerButton">登録</button>
+                    </div>
+                `
+            });
+
+            const tempMarker = new google.maps.Marker({
+                position: { lat: lat, lng: lng },
+                map: map,
+                icon: {
+                    path: google.maps.SymbolPath.CIRCLE,
+                    scale: 10,
+                    fillColor: '#999',
+                    fillOpacity: 0.8,
+                    strokeWeight: 0,
+                }
+            });
+
+            infowindow.open({
+                anchor: tempMarker,
+                map,
+                shouldFocus: false,
+            });
+            
+            google.maps.event.addListenerOnce(infowindow, 'domready', function() {
+                document.getElementById('registerButton').addEventListener('click', () => {
+                    registerSupplier(lat, lng);
+                    infowindow.close();
+                });
+            });
+
+            google.maps.event.addListener(infowindow, 'closeclick', function() {
+                    tempMarker.setMap(null);
+                });
+            }
+
+        function registerSupplier(lat, lng) {
+            const name = document.getElementById('name').value;
+            const email = document.getElementById('email').value;
+            const comment = document.getElementById('comment').value;
+
+            if (!name || !comment) {
+                alert("名前とコメントを入力してください。");
+                return;
+            }
+
+            const newSupplier = {
+                position: { lat: lat, lng: lng },
+                name: name,
+                email: email,
+                status: "blue",
+                comment: comment,
+                supplies: ["未設定"]
+            };
+
+            const suppliers = JSON.parse(localStorage.getItem('suppliers')) || [];
+            suppliers.push(newSupplier);
+            localStorage.setItem('suppliers', JSON.stringify(suppliers));
+
+            setTimeout(() => {
+                clearMarkers();
+                loadSuppliersFromLocalStorage();
+            }, 100);
+        }
+
+        function loadSuppliersFromLocalStorage() {
+            const suppliers = JSON.parse(localStorage.getItem('suppliers'));
+            if (suppliers) {
+                suppliers.forEach((supplier, index) => {
+                    createSupplierMarker(supplier, index);
+                });
+            }
+        }
+
+        function getStatusColor(status) {
+            switch (status) {
+                case 'blue': return '#4CAF50';
+                case 'yellow': return '#FFC107';
+                case 'red': return '#F44336';
+                default: return '#ccc';
+            }
+        }
+
+        document.getElementById('login-button').addEventListener('click', () => {
+            const password = document.getElementById('password').value;
+            if (password === adminPassword) {
+                loggedInUser = 'admin';
+                document.getElementById('login-form').style.display = 'none';
+                document.getElementById('user-info').style.display = 'block';
+                document.getElementById('current-user-status').textContent = '管理者としてログイン中';
+            } else if (password === supplierPassword) {
+                loggedInUser = 'supplier';
+                document.getElementById('login-form').style.display = 'none';
+                document.getElementById('user-info').style.display = 'block';
+                document.getElementById('current-user-status').textContent = '供給者としてログイン中';
+            } else if (password === recipientPassword) {
+                loggedInUser = 'recipient';
+                document.getElementById('login-form').style.display = 'none';
+                document.getElementById('user-info').style.display = 'block';
+                document.getElementById('current-user-status').textContent = '受給者としてログイン中';
+            } else {
+                alert('パスワードが違います。');
+                return;
+            }
+            clearMarkers();
+            loadSuppliersFromLocalStorage();
+        });
+
+        document.getElementById('logout-button').addEventListener('click', () => {
+            loggedInUser = null;
+            document.getElementById('login-form').style.display = 'block';
+            document.getElementById('user-info').style.display = 'none';
+            document.getElementById('password').value = '';
+            clearMarkers();
+            loadSuppliersFromLocalStorage();
+        });
+
+        window.onload = () => {
+             loggedInUser = null;
+             document.getElementById('login-form').style.display = 'block';
+             document.getElementById('user-info').style.display = 'none';
+             loadSuppliersFromLocalStorage();
+        };
+
+    </script>
+    <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDtiRPQOF6YO8D_sGAPH4I1E93J4G3HilA&callback=initMap"></script>
+</body>
+</html>
