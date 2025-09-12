@@ -158,16 +158,6 @@
             display: none;
             text-align: left;
         }
-        #update-button {
-            margin-top: 10px;
-            padding: 8px 12px;
-            border: none;
-            background-color: #28a745;
-            color: white;
-            border-radius: 5px;
-            cursor: pointer;
-            width: 100%;
-        }
     </style>
 </head>
 <body>
@@ -209,7 +199,6 @@
                 <input type="radio" name="auto-time-update-all" value="false"> しない
             </label>
         </div>
-        <button id="update-button">更新</button>
     </div>
 
     <script>
@@ -221,15 +210,6 @@
         let loggedInUser = null;
         let loggedInUserEmail = null;
         let selectedUserType = null;
-
-        // localStorageからリクエストデータを取得・保存する関数
-        function getRequests() {
-            return JSON.parse(localStorage.getItem('requests')) || [];
-        }
-
-        function saveRequests(requests) {
-            localStorage.setItem('requests', JSON.stringify(requests));
-        }
 
         function initMap() {
             map = new google.maps.Map(document.getElementById('map'), {
@@ -282,7 +262,7 @@
             google.maps.event.addListener(infoWindow, 'domready', function() {
                 const changeStatus = (newStatus) => {
                     supplier.status = newStatus;
-                    supplier.manualStatus = newStatus;
+                    supplier.manualStatus = newStatus; // 手動で変更した状態を保存
                     updateSupplierInLocalStorage(supplier, index);
                     infoWindow.setContent(createInfoWindowContent(supplier, index));
                     marker.setIcon({
@@ -320,22 +300,6 @@
                     document.getElementById('blueButton')?.addEventListener('click', () => changeStatus('blue'));
                     document.getElementById('yellowButton')?.addEventListener('click', () => changeStatus('yellow'));
                     document.getElementById('redButton')?.addEventListener('click', () => changeStatus('red'));
-
-                    // 供給者向けリクエスト承認・拒否ボタン
-                    document.querySelectorAll('.accept-request-btn').forEach(button => {
-                        button.addEventListener('click', (event) => {
-                            const requestId = event.target.dataset.requestId;
-                            updateRequestStatus(requestId, 'accepted');
-                            infoWindow.setContent(createInfoWindowContent(supplier, index));
-                        });
-                    });
-                    document.querySelectorAll('.reject-request-btn').forEach(button => {
-                        button.addEventListener('click', (event) => {
-                            const requestId = event.target.dataset.requestId;
-                            updateRequestStatus(requestId, 'rejected');
-                            infoWindow.setContent(createInfoWindowContent(supplier, index));
-                        });
-                    });
                 }
                 if (loggedInUser === 'admin') {
                     document.getElementById('deleteButton')?.addEventListener('click', deleteSupplier);
@@ -346,7 +310,7 @@
                     if (requestButton) {
                         requestButton.addEventListener('click', () => {
                             infoWindow.close();
-                            showRequestInfoWindow(supplier, index);
+                            showRequestInfoWindow(supplier);
                         });
                     }
                 }
@@ -358,7 +322,6 @@
             let adminButtonsHtml = '';
             let emailHtml = '';
             let requestButtonHtml = '';
-            let supplierRequestsHtml = '';
             
             const powerSourceText = supplier.powerSource === 'solar' ? '太陽光' : '蓄電池';
 
@@ -370,30 +333,6 @@
                         <button id="redButton" class="btn-red">不可能</button>
                     </div>
                 `;
-                
-                const requests = getRequests().filter(req => req.supplierIndex === index);
-                if (requests.length > 0) {
-                    supplierRequestsHtml = `
-                        <div class="scrollable-info-window" style="margin-top: 15px;">
-                            <h4>受け取ったリクエスト</h4>
-                            ${requests.map(req => `
-                                <div style="border-bottom: 1px solid #ccc; padding: 10px 0; margin-bottom: 5px;">
-                                    <p><strong>氏名:</strong> ${req.requesterName}</p>
-                                    <p><strong>電話番号:</strong> ${req.requesterTel}</p>
-                                    <p><strong>住所:</strong> ${req.requesterAddress}</p>
-                                    <p><strong>希望時間帯:</strong> ${req.requesterTime}</p>
-                                    <p><strong>状態:</strong> ${req.status === 'pending' ? '保留中' : (req.status === 'accepted' ? '承認済み' : '拒否済み')}</p>
-                                    ${req.status === 'pending' ? `
-                                        <button class="accept-request-btn btn-blue" data-request-id="${req.id}">承認</button>
-                                        <button class="reject-request-btn btn-red" data-request-id="${req.id}">拒否</button>
-                                    ` : ''}
-                                </div>
-                            `).join('')}
-                        </div>
-                    `;
-                } else {
-                    supplierRequestsHtml = `<p style="margin-top: 15px;">現在、新しいリクエストはありません。</p>`;
-                }
             }
 
             if (loggedInUser === 'admin') {
@@ -405,7 +344,7 @@
             }
             
             if (loggedInUser === 'recipient') {
-                requestButtonHtml = `<button id="requestButton" class="btn-blue">リクエスト</button>`;
+                 requestButtonHtml = `<button id="requestButton" class="btn-blue">リクエスト</button>`;
             }
             
             return `
@@ -417,7 +356,6 @@
                     ${buttonsHtml}
                     ${adminButtonsHtml}
                     ${requestButtonHtml}
-                    ${supplierRequestsHtml}
                 </div>
             `;
         }
@@ -472,8 +410,7 @@
             loadSuppliersFromLocalStorage();
         }
         
-        // 受給者向けリクエストフォーム
-        function showRequestInfoWindow(supplier, supplierIndex) {
+        function showRequestInfoWindow(supplier) {
             const requestInfoWindow = new google.maps.InfoWindow({
                 content: `
                     <div class="info-window scrollable-info-window">
@@ -487,8 +424,8 @@
                         <input type="text" id="requester-address" placeholder="住所" required><br>
                         <label for="requester-time">希望時間帯：</label><br>
                         <input type="text" id="requester-time" placeholder="例: 午前中" required><br>
-                        <label for="requester-email">連絡用メールアドレス：</label><br>
-                        <input type="email" id="requester-email" placeholder="メールアドレス" required><br>
+                        <label for="requester-email">メールアドレス：</label><br>
+                        <input type="email" id="requester-email" placeholder="返信用メールアドレス" required><br>
                         <button id="send-request-button" class="btn-blue">リクエストを送信</button>
                     </div>
                 `
@@ -513,36 +450,32 @@
                         return;
                     }
 
-                    const newRequest = {
-                        id: Date.now(),
-                        supplierIndex: supplierIndex,
-                        requesterName,
-                        requesterTel,
-                        requesterAddress,
-                        requesterTime,
-                        requesterEmail,
-                        status: 'pending'
-                    };
+                    const subject = `【災害時共助マップ】${supplier.name}様へのリクエスト`;
+                    const body = `
+${supplier.name}様
 
-                    const requests = getRequests();
-                    requests.push(newRequest);
-                    saveRequests(requests);
+災害時共助マップを見て、ご支援をリクエストさせていただきます。
+お手数ですが、ご確認後、ご返信いただけると幸いです。
 
-                    alert('リクエストを送信しました。供給者からの返信をお待ちください。');
+---
+【リクエスト内容】
+- 氏名：${requesterName}
+- 電話番号：${requesterTel}
+- 住所：${requesterAddress}
+- 希望時間帯：${requesterTime}
+- 返信先メールアドレス：${requesterEmail}
+---
+
+よろしくお願いいたします。
+`;
+
+                    const mailtoLink = `mailto:${supplier.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+                    
+                    window.location.href = mailtoLink;
+                    
                     requestInfoWindow.close();
                 });
             });
-        }
-
-        // リクエストのステータスを更新する関数
-        function updateRequestStatus(requestId, newStatus) {
-            const requests = getRequests();
-            const request = requests.find(req => req.id == requestId);
-            if (request) {
-                request.status = newStatus;
-                saveRequests(requests);
-                alert(`リクエストを${newStatus === 'accepted' ? '承認' : '拒否'}しました。`);
-            }
         }
 
         function updateSupplierInLocalStorage(updatedSupplier, index) {
@@ -623,9 +556,9 @@
             });
 
             google.maps.event.addListener(infowindow, 'closeclick', function() {
-                tempMarker.setMap(null);
-            });
-        }
+                    tempMarker.setMap(null);
+                });
+            }
 
         function registerSupplier(lat, lng) {
             const name = document.getElementById('name').value;
@@ -644,8 +577,8 @@
                 name: name,
                 email: email,
                 password: password,
-                status: "blue",
-                manualStatus: "blue",
+                status: "red", // デフォルトを「不可能」に設定
+                manualStatus: "red", // デフォルトを「不可能」に設定
                 supplies: supplies,
                 powerSource: powerSource,
             };
@@ -670,28 +603,30 @@
                 
                 if (autoTimeUpdateAll) {
                     suppliers = suppliers.map(supplier => {
+                        // manualStatusがない場合は初期設定
                         if (!supplier.manualStatus) {
-                            supplier.manualStatus = 'blue';
+                            supplier.manualStatus = 'red'; // 新規登録のデフォルトステータスに合わせる
                         }
                         
                         if (supplier.powerSource === 'solar') {
                             if (currentHour >= 9 && currentHour < 16) {
-                                supplier.status = supplier.manualStatus === 'red' ? 'red' : 'blue';
+                                supplier.status = supplier.manualStatus;
                             } else {
                                 supplier.status = 'red';
                             }
                         } else if (supplier.powerSource === 'battery') {
                              supplier.status = supplier.manualStatus;
-                         }
+                        }
                         return supplier;
                     });
                 } else {
-                     suppliers = suppliers.map(supplier => {
+                     // 自動更新を「しない」にした場合、manualStatusに戻す
+                    suppliers = suppliers.map(supplier => {
                         if (supplier.manualStatus) {
                             supplier.status = supplier.manualStatus;
                         } else {
-                            supplier.status = 'blue';
-                            supplier.manualStatus = 'blue';
+                            supplier.status = 'red'; // 新規登録のデフォルトステータスに合わせる
+                            supplier.manualStatus = 'red';
                         }
                         return supplier;
                     });
@@ -845,17 +780,11 @@
             });
         });
         
-        document.getElementById('update-button').addEventListener('click', () => {
-            clearMarkers();
-            loadSuppliersFromLocalStorage();
-            alert('マップの表示を更新しました。');
-        });
-
         window.onload = () => {
-            loggedInUser = null;
-            loggedInUserEmail = null;
-            showUserTypeSelection();
-            loadSuppliersFromLocalStorage();
+             loggedInUser = null;
+             loggedInUserEmail = null;
+             showUserTypeSelection();
+             loadSuppliersFromLocalStorage();
         };
 
     </script>
