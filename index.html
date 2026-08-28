@@ -61,14 +61,18 @@
             padding-top: 4px;
         }
 
-        #runnerListHeading {
+        .runner-list-header {
             position: sticky;
             top: var(--sticky-offset, 0px);
             z-index: 30;
             background-color: var(--card-bg-color);
             padding-top: 4px;
             padding-bottom: 8px;
-            margin: 0 0 4px 0 !important;
+            margin: 0 0 4px 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
         }
 
         h1 {
@@ -254,21 +258,22 @@
         #lapButton { background-color: var(--button-lap); }
 
         .add-runner-btn {
-            width: 100%;
-            padding: 12px;
+            width: auto;
+            padding: 8px 14px;
             background-color: transparent;
             border: 2px dashed var(--accent-color);
             border-radius: 6px;
             cursor: pointer;
-            margin-top: 15px;
+            flex-shrink: 0;
             color: var(--accent-color);
-            font-size: 0.9em;
+            font-size: 0.85em;
             font-weight: 500;
             transition: all 0.3s;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 8px;
+            gap: 6px;
+            white-space: nowrap;
         }
 
         .add-runner-btn:hover {
@@ -557,11 +562,13 @@
 
     <div class="main-container">
         <div class="column runner-list">
-            <h2 id="runnerListHeading" style="font-size: 1.2em; margin-top: 5px; margin-bottom: 10px;">走者リスト</h2>
+            <div class="runner-list-header">
+                <h2 id="runnerListHeading" style="font-size: 1.2em; margin: 0;">走者リスト</h2>
+                <button class="add-runner-btn" id="addRunnerButton"><i class="fas fa-plus"></i> 走者追加</button>
+            </div>
             <ul id="runnerList">
 
             </ul>
-            <button class="add-runner-btn" id="addRunnerButton"><i class="fas fa-plus"></i> 走者追加</button>
         </div>
 
         <div class="column selected-runner-list">
