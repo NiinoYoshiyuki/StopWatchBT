@@ -383,7 +383,7 @@
 
         .header-record-labels {
             display: grid;
-            grid-template-columns: 35px 1fr 1fr 35px;
+            grid-template-columns: 45px 1fr 1fr 35px;
             font-weight: 600;
             margin-bottom: 5px;
         }
@@ -433,7 +433,8 @@
             padding: 10px 8px;
             border-bottom: 1px solid var(--border-color);
             display: grid;
-            grid-template-columns: 35px 1fr 1fr 35px;
+            grid-template-columns: 45px 1fr 1fr 35px;
+            column-gap: 6px;
             align-items: center;
             transition: background-color 0.2s;
         }
@@ -444,7 +445,7 @@
         .selected-runner-record-item .record-number {
             font-weight: 500;
             color: var(--secondary-text-color);
-            font-size: 1.1em;
+            font-size: 1.6em;
             text-align: left; /* Noは左揃え */
             grid-column: 1 / 2;
         }
@@ -452,19 +453,23 @@
         .selected-runner-record-item .runner-lap-time {
             font-family: var(--font-display);
             font-weight: 500;
-            font-size: 1.4em;
+            font-size: 2em;
             color: var(--text-color);
             text-align: center; /* ラップタイムは中央揃え */
             grid-column: 2 / 3;
+            min-width: 0;
+            overflow: hidden;
         }
 
         .selected-runner-record-item .runner-goal-time {
             font-family: var(--font-display);
             font-weight: 500;
-            font-size: 1.4em;
+            font-size: 2em;
             color: var(--text-color);
             text-align: center; /* ゴールタイムは中央揃え */
             grid-column: 3 / 4;
+            min-width: 0;
+            overflow: hidden;
         }
 
         .selected-runner-record-item .delete-btn {
