@@ -41,6 +41,17 @@
             display: flex;
             flex-direction: column;
             align-items: center;
+            overflow-x: hidden;
+            box-sizing: border-box;
+        }
+
+        .sticky-top {
+            position: sticky;
+            top: 0;
+            z-index: 40;
+            width: 100%;
+            background-color: var(--bg-color);
+            padding-top: 10px;
         }
 
         h1 {
@@ -86,7 +97,7 @@
         /* ストップウォッチ表示エリア */
         .time-display {
             font-family: var(--font-display);
-            font-size: clamp(9em, 16vw, 14em);
+            font-size: clamp(3em, 16vw, 14em);
             margin-bottom: 20px;
             color: #39ff14; /* 蛍光緑に変更 */
             font-weight: 500;
@@ -103,17 +114,20 @@
         /* Controls */
         .controls {
             margin-bottom: 20px;
-            display: flex;
-            justify-content: center;
-            gap: 10px;
-            flex-wrap: wrap;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            width: 100%;
+            box-sizing: border-box;
         }
 
         .controls button {
             font-family: var(--font-primary);
-            font-size: 2.4em;
-            padding: 40px 32px;
-            min-height: 140px;
+            font-size: clamp(0.6em, 3.2vw, 2.4em);
+            padding: clamp(14px, 5vw, 40px) 2px;
+            min-height: clamp(60px, 15vw, 140px);
+            width: 100%;
+            box-sizing: border-box;
             border: none;
             border-radius: 6px;
             cursor: pointer;
@@ -122,11 +136,22 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 8px;
+            gap: 4px;
             font-weight: 600;
             box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2);
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.2px;
+            overflow: hidden;
+            white-space: nowrap;
+        }
+
+        @media (max-width: 480px) {
+            .controls button i {
+                display: none;
+            }
+            .controls button {
+                font-size: clamp(0.7em, 3.4vw, 2.4em);
+            }
         }
 
         .controls button:hover:not(:disabled) {
@@ -281,10 +306,12 @@
             padding: 0;
             margin: 0;
             justify-content: flex-start;
+            max-height: 50vh;
+            overflow-y: auto;
         }
         .runner-list li {
             width: 100%;
-            padding: 10px;
+            padding: 20px;
             border: 1px solid var(--border-color);
             border-radius: 6px;
             background-color: #383838;
@@ -310,7 +337,7 @@
         }
 
         .runner-name {
-            font-size: 1.3em;
+            font-size: 2.6em;
             font-weight: 500;
             color: var(--text-color);
         }
@@ -470,14 +497,16 @@
 </head>
 <body>
     <button id="connectButton"><i class="fas fa-bluetooth-b"></i> デバイスに接続</button>
-    <h1>Bluetooth Stopwatch</h1>
-    <div class="time-display" id="currentTime">00:00.00</div>
+    <div class="sticky-top">
+        <h1>Bluetooth Stopwatch</h1>
+        <div class="time-display" id="currentTime">00:00.00</div>
 
-    <div class="controls">
-        <button id="startButton"><i class="fas fa-play"></i> スタート</button>
-        <button id="lapButton" disabled><i class="fas fa-forward"></i> ラップ</button>
-        <button id="stopButton" disabled><i class="fas fa-stop"></i> ゴール</button>
-        <button id="resetButton" disabled><i class="fas fa-redo"></i> リセット</button>
+        <div class="controls">
+            <button id="startButton"><i class="fas fa-play"></i> スタート</button>
+            <button id="lapButton" disabled><i class="fas fa-forward"></i> ラップ</button>
+            <button id="stopButton" disabled><i class="fas fa-stop"></i> ゴール</button>
+            <button id="resetButton" disabled><i class="fas fa-redo"></i> リセット</button>
+        </div>
     </div>
 
     <div class="main-container">
