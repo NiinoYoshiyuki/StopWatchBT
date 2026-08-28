@@ -6,6 +6,7 @@
     <title>Bluetooth Stopwatch App</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto+Mono:wght@500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         /* ==================================================================== */
         /* CSS (デザイン) セクション - 更新版 */
@@ -236,6 +237,7 @@
         }
 
         #connectButton { background-color: var(--button-connect); }
+        #importRunnersButton { background-color: #34a853; }
         #exportAllButton { background-color: var(--export-all-btn-color); }
         #clearAllButton { background-color: var(--clear-all-btn-color); }
         #clearRecordsButton { background-color: var(--delete-btn-color); }
@@ -535,6 +537,8 @@
     <button id="settingsButton" aria-label="設定"><i class="fas fa-cog"></i></button>
     <div id="settingsMenu" class="settings-menu">
         <button id="connectButton"><i class="fas fa-bluetooth-b"></i> デバイスに接続</button>
+        <button id="importRunnersButton"><i class="fas fa-file-import"></i> 名簿インポート</button>
+        <input type="file" id="importFileInput" accept=".xlsx,.xls" style="display:none">
         <button id="exportAllButton"><i class="fas fa-file-export"></i> データエクスポート</button>
         <button id="clearAllButton"><i class="fas fa-trash-alt"></i> 初期化</button>
         <button id="clearRecordsButton"><i class="fas fa-times-circle"></i> 測定記録のクリア</button>
@@ -625,6 +629,8 @@
         const recordsListElement = document.getElementById('recordsList');
         const addRunnerButton = document.getElementById('addRunnerButton');
         const exportAllButton = document.getElementById('exportAllButton');
+        const importRunnersButton = document.getElementById('importRunnersButton');
+        const importFileInput = document.getElementById('importFileInput');
         const deleteRunnerButton = document.getElementById('deleteRunnerButton');
         const clearAllButton = document.getElementById('clearAllButton');
         const clearRecordsButton = document.getElementById('clearRecordsButton');
@@ -680,6 +686,11 @@
             exportAllToCsv();
             settingsMenu.classList.remove('open');
         });
+        importRunnersButton.addEventListener('click', () => {
+            importFileInput.value = '';
+            importFileInput.click();
+        });
+        importFileInput.addEventListener('change', handleRunnerImportFile);
         clearAllButton.addEventListener('click', () => {
             clearAllData();
             settingsMenu.classList.remove('open');
@@ -940,6 +951,72 @@
                 renderSelectedRunnerRecords();
                 alert("全ての記録を削除しました。");
             }
+        }
+
+        function handleRunnerImportFile(event) {
+            const file = event.target.files && event.target.files[0];
+            if (!file) return;
+
+            if (typeof XLSX === 'undefined') {
+                alert('インポート機能の読み込みに失敗しました。通信環境を確認して再度お試しください。');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const sheet = workbook.Sheets[firstSheetName];
+                    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+
+                    if (!rows || rows.length === 0) {
+                        alert('名簿データが見つかりませんでした。');
+                        return;
+                    }
+
+                    // "氏名" 列を探す（見つからなければ1列目を使用）
+                    const headerRow = rows[0].map(cell => String(cell).trim());
+                    let nameColIndex = headerRow.findIndex(h => h === '氏名');
+                    let startRow = 1;
+                    if (nameColIndex === -1) {
+                        nameColIndex = 0;
+                        startRow = 0; // ヘッダーが無い場合は1行目からデータとして扱う
+                    }
+
+                    const importedNames = [];
+                    for (let i = startRow; i < rows.length; i++) {
+                        const row = rows[i];
+                        if (!row) continue;
+                        const rawName = row[nameColIndex];
+                        const name = rawName === undefined || rawName === null ? '' : String(rawName).trim();
+                        if (name) {
+                            importedNames.push(name);
+                        }
+                    }
+
+                    if (importedNames.length === 0) {
+                        alert('インポート可能な氏名が見つかりませんでした。「氏名」列があるか確認してください。');
+                        return;
+                    }
+
+                    importedNames.forEach(name => {
+                        const newRunner = { id: nextRunnerId, name: name, records: [] };
+                        runners.push(newRunner);
+                        nextRunnerId++;
+                    });
+
+                    renderRunnerList();
+                    saveData();
+                    settingsMenu.classList.remove('open');
+                    alert(`${importedNames.length}名の走者をインポートしました。`);
+                } catch (err) {
+                    console.error(err);
+                    alert('ファイルの読み込みに失敗しました。Excel形式(.xlsx)のファイルか確認してください。');
+                }
+            };
+            reader.readAsArrayBuffer(file);
         }
 
         function addRunner() {
