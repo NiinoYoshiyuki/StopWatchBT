@@ -224,6 +224,81 @@
             display: flex;
         }
 
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 200;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            box-sizing: border-box;
+        }
+
+        .modal-overlay.open {
+            display: flex;
+        }
+
+        .modal-box {
+            background-color: var(--card-bg-color);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 16px;
+            width: 100%;
+            max-width: 500px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-box h3 {
+            margin: 0 0 8px 0;
+            color: var(--text-color);
+        }
+
+        .modal-hint {
+            font-size: 0.85em;
+            color: var(--secondary-text-color);
+            margin: 0 0 10px 0;
+            line-height: 1.4;
+        }
+
+        #csvExportTextarea {
+            width: 100%;
+            box-sizing: border-box;
+            height: 180px;
+            background-color: #1a1a1a;
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 8px;
+            font-family: var(--font-display);
+            font-size: 0.8em;
+            resize: vertical;
+        }
+
+        .modal-btn-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .modal-action-btn {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            color: white;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
         .settings-menu button {
             font-family: var(--font-primary);
             font-size: 0.9em;
@@ -548,6 +623,18 @@
         <button id="clearAllButton"><i class="fas fa-trash-alt"></i> 初期化</button>
         <button id="clearRecordsButton"><i class="fas fa-times-circle"></i> 測定記録のクリア</button>
     </div>
+
+    <div id="csvExportOverlay" class="modal-overlay">
+        <div class="modal-box">
+            <h3>データエクスポート</h3>
+            <p class="modal-hint">自動ダウンロードされない場合は、下のテキストをコピーして、メモ帳やExcel等に貼り付けて保存してください。</p>
+            <textarea id="csvExportTextarea" readonly></textarea>
+            <div class="modal-btn-row">
+                <button id="csvCopyButton" class="modal-action-btn" style="background-color: var(--accent-color);"><i class="fas fa-copy"></i> コピー</button>
+                <button id="csvCloseButton" class="modal-action-btn" style="background-color: var(--disabled-color);"><i class="fas fa-times"></i> 閉じる</button>
+            </div>
+        </div>
+    </div>
     <div class="sticky-top" id="stickyTop">
         <h1>Bluetooth Stopwatch</h1>
         <div class="time-display" id="currentTime">00:00.00</div>
@@ -698,6 +785,38 @@
             importFileInput.click();
         });
         importFileInput.addEventListener('change', handleRunnerImportFile);
+
+        const csvExportOverlay = document.getElementById('csvExportOverlay');
+        const csvExportTextarea = document.getElementById('csvExportTextarea');
+        const csvCopyButton = document.getElementById('csvCopyButton');
+        const csvCloseButton = document.getElementById('csvCloseButton');
+
+        csvCloseButton.addEventListener('click', () => {
+            csvExportOverlay.classList.remove('open');
+        });
+        csvExportOverlay.addEventListener('click', (event) => {
+            if (event.target === csvExportOverlay) {
+                csvExportOverlay.classList.remove('open');
+            }
+        });
+        csvCopyButton.addEventListener('click', async () => {
+            try {
+                csvExportTextarea.focus();
+                csvExportTextarea.select();
+                csvExportTextarea.setSelectionRange(0, csvExportTextarea.value.length);
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(csvExportTextarea.value);
+                } else {
+                    document.execCommand('copy');
+                }
+                csvCopyButton.textContent = 'コピーしました';
+                setTimeout(() => {
+                    csvCopyButton.innerHTML = '<i class="fas fa-copy"></i> コピー';
+                }, 1500);
+            } catch (err) {
+                alert('コピーに失敗しました。テキストを長押しして手動でコピーしてください。');
+            }
+        });
         clearAllButton.addEventListener('click', () => {
             clearAllData();
             settingsMenu.classList.remove('open');
@@ -1242,42 +1361,51 @@
 
             const csvContent = convertToCsvString(runners);
             downloadCsv(csvContent, "全走者記録.csv");
+            showCsvExportModal(csvContent);
+        }
+
+        function showCsvExportModal(csvContent) {
+            const overlay = document.getElementById('csvExportOverlay');
+            const textarea = document.getElementById('csvExportTextarea');
+            textarea.value = csvContent;
+            overlay.classList.add('open');
+        }
+
+        function utf8ToBase64(str) {
+            const bytes = new TextEncoder().encode(str);
+            let binary = '';
+            for (let i = 0; i < bytes.length; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            return btoa(binary);
         }
 
         function downloadCsv(csvContent, filename) {
-            const BOM = new Uint8Array([0xEF, 0xBB, 0xBF]);
-            const blob = new Blob([BOM, csvContent], { type: 'text/csv;charset=utf-8;' });
+            // 明示的にbase64エンコードしたdata URIを使用する。
+            // (パーセントエンコード方式だと、一部のブラウザ/WebViewの
+            //  保存処理がbase64として誤って扱いatobエラーになることがあるため)
+            const BOM = '\uFEFF';
+            const base64Data = utf8ToBase64(BOM + csvContent);
+            const dataUrl = 'data:text/csv;charset=utf-8;base64,' + base64Data;
 
-            // 古いIE/Edge向け
-            if (navigator.msSaveOrOpenBlob) {
-                navigator.msSaveOrOpenBlob(blob, filename);
-                return;
-            }
-
-            const url = URL.createObjectURL(blob);
             const link = document.createElement("a");
-            link.href = url;
-            link.download = filename;
-            link.rel = 'noopener';
+            link.setAttribute("href", dataUrl);
+            link.setAttribute("download", filename);
             link.style.position = 'fixed';
             link.style.top = '-9999px';
             document.body.appendChild(link);
-
-            const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) ||
-                (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-
-            if (isIOS) {
-                // iOS Safariはdownload属性が効かない場合があるため、
-                // 新しいタブで開いて共有(Files保存)できるようにする
-                window.open(url, '_blank');
-            } else {
-                link.click();
-            }
+            link.click();
 
             setTimeout(() => {
-                document.body.removeChild(link);
-                URL.revokeObjectURL(url);
-            }, 3000);
+                if (link.parentNode) {
+                    document.body.removeChild(link);
+                }
+            }, 1000);
+
+            // download属性が効かない古いブラウザ向けフォールバック
+            if (!('download' in link)) {
+                window.location.href = dataUrl;
+            }
         }
     </script>
 </body>
