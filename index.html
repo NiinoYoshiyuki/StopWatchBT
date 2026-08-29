@@ -126,8 +126,6 @@
             border: 1px solid var(--border-color);
         }
 
-
-
         /* ストップウォッチ表示エリア */
         .time-display {
             font-family: var(--font-display);
@@ -368,6 +366,7 @@
         #exportAllButton { background-color: var(--export-all-btn-color); }
         #clearAllButton { background-color: var(--clear-all-btn-color); }
         #clearRecordsButton { background-color: var(--delete-btn-color); }
+        #voiceToggleBtn { background-color: #334155; }
 
         #connectButton:disabled {
             background-color: var(--disabled-color);
@@ -483,7 +482,7 @@
             border-radius: 3px;
         }
 
-        /* ★ヘッダーの新しいレイアウト */
+        /* ヘッダーの新しいレイアウト */
         .header-top-row {
             display: flex;
             justify-content: space-between;
@@ -502,7 +501,6 @@
             margin-bottom: 5px;
         }
 
-        /* ヘッダーの「No」「Lap」「Goal」を個別に配置調整 */
         .header-record-labels span:nth-child(1) { /* No */
             justify-self: start;
         }
@@ -512,7 +510,7 @@
         }
 
         .header-record-labels span:nth-child(3) { /* Goal */
-            justify-self: center; /* 中央に配置し、少し左に寄せる */
+            justify-self: center;
         }
 
         .selected-runner-name {
@@ -565,7 +563,7 @@
             font-weight: 500;
             color: var(--secondary-text-color);
             font-size: 1.4em;
-            text-align: left; /* Noは左揃え */
+            text-align: left;
             grid-column: 1 / 2;
         }
 
@@ -574,7 +572,7 @@
             font-weight: 500;
             font-size: clamp(0.9em, 5vw, 1.6em);
             color: var(--text-color);
-            text-align: center; /* ラップタイムは中央揃え */
+            text-align: center;
             grid-column: 2 / 3;
             min-width: 0;
         }
@@ -584,7 +582,7 @@
             font-weight: 500;
             font-size: clamp(0.9em, 5vw, 1.6em);
             color: var(--text-color);
-            text-align: center; /* ゴールタイムは中央揃え */
+            text-align: center;
             grid-column: 3 / 4;
             min-width: 0;
         }
@@ -624,6 +622,7 @@
         <button id="importRunnersButton"><i class="fas fa-file-import"></i> 名簿インポート</button>
         <input type="file" id="importFileInput" accept=".xlsx,.xls" style="display:none">
         <button id="exportAllButton"><i class="fas fa-file-export"></i> データエクスポート</button>
+        <button id="voiceToggleBtn"><i class="fas fa-volume-up"></i> ゴール後音声読み上げ: <span id="voiceStatusText">OFF</span></button>
         <button id="clearAllButton"><i class="fas fa-trash-alt"></i> 初期化</button>
         <button id="clearRecordsButton"><i class="fas fa-times-circle"></i> 測定記録のクリア</button>
     </div>
@@ -702,11 +701,14 @@
         let runners = [];
         let nextRunnerId = 1;
         let selectedRunnerId = null;
+        let voiceReadingEnabled = false;
 
         const connectButton = document.getElementById('connectButton');
         const settingsButton = document.getElementById('settingsButton');
         const settingsMenu = document.getElementById('settingsMenu');
         const stickyTop = document.getElementById('stickyTop');
+        const voiceToggleBtn = document.getElementById('voiceToggleBtn');
+        const voiceStatusText = document.getElementById('voiceStatusText');
 
         function updateStickyOffset() {
             if (stickyTop) {
@@ -733,12 +735,10 @@
         const clearAllButton = document.getElementById('clearAllButton');
         const clearRecordsButton = document.getElementById('clearRecordsButton');
 
-        // Initial setup
         loadData();
         updateTimeDisplay(0);
         renderRunnerList();
 
-        // Event Listeners
         settingsButton.addEventListener('click', (event) => {
             event.stopPropagation();
             settingsMenu.classList.toggle('open');
@@ -789,6 +789,12 @@
             importFileInput.click();
         });
         importFileInput.addEventListener('change', handleRunnerImportFile);
+        
+        voiceToggleBtn.addEventListener('click', () => {
+            voiceReadingEnabled = !voiceReadingEnabled;
+            voiceStatusText.textContent = voiceReadingEnabled ? "ON" : "OFF";
+            saveData();
+        });
 
         const csvExportOverlay = document.getElementById('csvExportOverlay');
         const csvExportTextarea = document.getElementById('csvExportTextarea');
@@ -830,32 +836,35 @@
             settingsMenu.classList.remove('open');
         });
 
-        // ========================
-        // データ永続化の関数
-        // ========================
         function saveData() {
             localStorage.setItem('runnersData', JSON.stringify(runners));
             localStorage.setItem('nextRunnerId', nextRunnerId);
             localStorage.setItem('selectedRunnerId', selectedRunnerId);
+            localStorage.setItem('voiceReadingEnabled', voiceReadingEnabled);
         }
 
         function loadData() {
             const savedRunners = localStorage.getItem('runnersData');
             const savedNextId = localStorage.getItem('nextRunnerId');
             const savedSelectedId = localStorage.getItem('selectedRunnerId');
+            const savedVoiceSetting = localStorage.getItem('voiceReadingEnabled');
 
             if (savedRunners) {
                 runners = JSON.parse(savedRunners);
                 nextRunnerId = parseInt(savedNextId, 10);
                 selectedRunnerId = parseInt(savedSelectedId, 10);
             } else {
-                // 初回アクセス時またはデータがない場合、初期データを設定
                 runners = [
                     { id: 1, name: "走者1", records: [] }
                 ];
                 nextRunnerId = 2;
                 selectedRunnerId = 1;
-                saveData(); // 初期データを保存
+                saveData();
+            }
+
+            if (savedVoiceSetting !== null) {
+                voiceReadingEnabled = (savedVoiceSetting === 'true');
+                voiceStatusText.textContent = voiceReadingEnabled ? "ON" : "OFF";
             }
         }
 
@@ -892,7 +901,6 @@
                 isConnecting = false;
                 connectButton.textContent = "接続済み";
                 connectButton.disabled = true;
-                console.log("接続に成功しました。センサーからの通知を待機しています。");
             } catch (error) {
                 console.error(`GATT接続エラー: ${error}`);
                 connectButton.textContent = "接続エラー";
@@ -925,32 +933,29 @@
                 const sw = data.sw;
                 const tr = data.tr;
 
-                // スイッチのリセットを優先して処理
-                if (sw > 0) { // Reset
+                if (sw > 0) {
                     resetStopwatch();
                     lastTr = 0;
                     return;
                 }
 
-                // センサーのトリガーを処理
                 if (tr !== lastTr) {
-                    if (tr === 1) { // START_TRG
+                    if (tr === 1) {
                         startStopwatch();
                     } else if (isRunning) {
-                        if (tr === 2 || tr === 4) { // Lap
+                        if (tr === 2 || tr === 4) {
                             recordLapGoal("Lap");
-                        } else if (tr === 8) { // GOAL_TRG
+                        } else if (tr === 8) {
                             recordLapGoal("Goal");
                             stopStopwatch();
-                            lastTr = 0; // GOAL検知後にlastTrをリセット
+                            lastTr = 0;
                         }
                     }
                 }
 
-                if (tr !== 8) { // GOAL以外の値であれば、lastTrを更新
+                if (tr !== 8) {
                     lastTr = tr;
                 }
-
 
             } catch (e) {
                 console.error(`JSONパースエラー: ${e}`);
@@ -1041,11 +1046,9 @@
             const currentTime = formatTime(elapsedTime);
             let latestRecord = runner.records[0];
 
-            // 最新の記録がラップタイムのみを持っている場合、そこにゴールタイムを追加する
             if (latestRecord && triggerType === "Goal" && latestRecord.lapTime && !latestRecord.goalTime) {
                 latestRecord.goalTime = currentTime;
             } else {
-                // それ以外の場合は、常に新しい記録を作成する
                 const newRecord = {
                     time: elapsedTime,
                     lapTime: triggerType === "Lap" ? currentTime : "",
@@ -1054,8 +1057,44 @@
                 runner.records.unshift(newRecord);
             }
 
+            if (triggerType === "Goal" && voiceReadingEnabled) {
+                const timeToSpeak = currentTime;
+                setTimeout(() => {
+                    speakTime(timeToSpeak);
+                }, 3000);
+            }
+
             renderSelectedRunnerRecords();
             saveData();
+        }
+
+        // 小数点を完全に1桁ずつ分割して確実に出発・発音させる関数
+        function speakTime(timeStr) {
+            if (!('speechSynthesis' in window)) return;
+            
+            window.speechSynthesis.cancel(); // 既存の読み上げをクリアして確実に発音させる
+
+            const parts = timeStr.split(':');
+            const minutes = parseInt(parts[0], 10);
+            const secParts = parts[1].split('.');
+            const seconds = parseInt(secParts[0], 10);
+            const hundredths = secParts[1]; // 例: "15"
+
+            let textToSpeak = "";
+            if (minutes > 0) {
+                textToSpeak += `${minutes}分`;
+            }
+            textToSpeak += `${seconds}秒`;
+
+            // 小数部分の各文字（例: "1" と "5"）を独立して連結
+            for (let i = 0; i < hundredths.length; i++) {
+                textToSpeak += ` ${hundredths[i]}`;
+            }
+
+            const utterance = new SpeechSynthesisUtterance(textToSpeak);
+            utterance.lang = 'ja-JP';
+            utterance.rate = 1.0;
+            window.speechSynthesis.speak(utterance);
         }
 
         function deleteRunner(runnerId) {
@@ -1068,7 +1107,7 @@
                 }
                 renderRunnerList();
                 renderSelectedRunnerRecords();
-                saveData(); // データの変更を保存
+                saveData();
             }
         }
 
@@ -1077,7 +1116,7 @@
             if (runner && confirm("この記録を削除しますか？")) {
                 runner.records.splice(recordIndex, 1);
                 renderSelectedRunnerRecords();
-                saveData(); // データの変更を保存
+                saveData();
             }
         }
 
@@ -1089,7 +1128,7 @@
                 saveData();
                 renderRunnerList();
                 renderSelectedRunnerRecords();
-                alert("全てのデータを削除しました。");
+                alert("すべてのデータを削除しました。");
             }
         }
 
@@ -1100,7 +1139,7 @@
                 });
                 saveData();
                 renderSelectedRunnerRecords();
-                alert("全ての記録を削除しました。");
+                alert("すべての記録を削除しました。");
             }
         }
 
@@ -1127,13 +1166,12 @@
                         return;
                     }
 
-                    // "氏名" 列を探す（見つからなければ1列目を使用）
                     const headerRow = rows[0].map(cell => String(cell).trim());
                     let nameColIndex = headerRow.findIndex(h => h === '氏名');
                     let startRow = 1;
                     if (nameColIndex === -1) {
                         nameColIndex = 0;
-                        startRow = 0; // ヘッダーが無い場合は1行目からデータとして扱う
+                        startRow = 0;
                     }
 
                     const importedNames = [];
@@ -1177,7 +1215,7 @@
             renderRunnerList();
             selectedRunnerId = newRunner.id;
             renderSelectedRunnerRecords();
-            saveData(); // データの変更を保存
+            saveData();
         }
 
         function selectRunner(event) {
@@ -1190,7 +1228,7 @@
                 listItem.classList.add('selected');
 
                 renderSelectedRunnerRecords();
-                saveData(); // データの変更を保存
+                saveData();
             }
         }
 
@@ -1245,7 +1283,7 @@
                     runner.name = newName;
                     renderRunnerList();
                     renderSelectedRunnerRecords();
-                    saveData(); // データの変更を保存
+                    saveData();
                 } else {
                     renderRunnerList();
                 }
@@ -1362,7 +1400,7 @@
 
             runnersData.forEach(runner => {
                 let row = escapeCsv(runner.name);
-                const reversedRecords = runner.records; // Fix: No need to reverse again
+                const reversedRecords = runner.records;
                 for (let i = 0; i < maxRecords; i++) {
                     if (i < reversedRecords.length) {
                         const record = reversedRecords[i];
@@ -1399,8 +1437,6 @@
             const BOM = new Uint8Array([0xEF, 0xBB, 0xBF]);
             const blob = new Blob([BOM, csvContent], { type: 'text/csv;charset=utf-8;' });
 
-            // iOS/AndroidではWeb Share APIでネイティブの共有シート
-            // (AirDrop/メール/メッセージ/ファイルに保存 等)を優先表示する
             if (navigator.canShare && navigator.share) {
                 try {
                     const file = new File([blob], filename, { type: 'text/csv' });
@@ -1410,10 +1446,8 @@
                     }
                 } catch (err) {
                     if (err && err.name === 'AbortError') {
-                        // ユーザーが共有をキャンセルした場合は何もしない
                         return;
                     }
-                    // 共有に失敗した場合は通常のダウンロードにフォールバック
                 }
             }
 
@@ -1429,7 +1463,6 @@
                 setTimeout(() => URL.revokeObjectURL(url), 3000);
             }
 
-            // Web Share APIが使えない環境向けに、コピー用のフォールバック画面も表示
             showCsvExportModal(csvContent);
         }
     </script>
