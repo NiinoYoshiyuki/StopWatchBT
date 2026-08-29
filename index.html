@@ -217,7 +217,7 @@
             display: none;
             flex-direction: column;
             gap: 6px;
-            min-width: 220px;
+            min-width: 240px;
         }
 
         .settings-menu.open {
@@ -302,9 +302,9 @@
         .settings-menu button {
             font-family: var(--font-primary);
             font-size: 0.9em;
-            padding: 10px 14px;
+            padding: 12px 16px;
             border: none;
-            border-radius: 6px;
+            border-radius: 8px;
             cursor: pointer;
             color: white;
             display: flex;
@@ -313,6 +313,14 @@
             gap: 10px;
             font-weight: 600;
             white-space: nowrap;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .settings-menu button i {
+            width: 1.1em;
+            text-align: center;
+            flex-shrink: 0;
         }
 
         #connectButton { background-color: var(--button-connect); }
