@@ -1361,7 +1361,6 @@
 
             const csvContent = convertToCsvString(runners);
             downloadCsv(csvContent, "全走者記録.csv");
-            showCsvExportModal(csvContent);
         }
 
         function showCsvExportModal(csvContent) {
@@ -1371,42 +1370,44 @@
             overlay.classList.add('open');
         }
 
-        function utf8ToBase64(str) {
-            const bytes = new TextEncoder().encode(str);
-            let binary = '';
-            for (let i = 0; i < bytes.length; i++) {
-                binary += String.fromCharCode(bytes[i]);
-            }
-            return btoa(binary);
-        }
+        async function downloadCsv(csvContent, filename) {
+            const BOM = new Uint8Array([0xEF, 0xBB, 0xBF]);
+            const blob = new Blob([BOM, csvContent], { type: 'text/csv;charset=utf-8;' });
 
-        function downloadCsv(csvContent, filename) {
-            // 明示的にbase64エンコードしたdata URIを使用する。
-            // (パーセントエンコード方式だと、一部のブラウザ/WebViewの
-            //  保存処理がbase64として誤って扱いatobエラーになることがあるため)
-            const BOM = '\uFEFF';
-            const base64Data = utf8ToBase64(BOM + csvContent);
-            const dataUrl = 'data:text/csv;charset=utf-8;base64,' + base64Data;
+            // iOS/AndroidではWeb Share APIでネイティブの共有シート
+            // (AirDrop/メール/メッセージ/ファイルに保存 等)を優先表示する
+            if (navigator.canShare && navigator.share) {
+                try {
+                    const file = new File([blob], filename, { type: 'text/csv' });
+                    if (navigator.canShare({ files: [file] })) {
+                        await navigator.share({ files: [file], title: filename });
+                        return;
+                    }
+                } catch (err) {
+                    if (err && err.name === 'AbortError') {
+                        // ユーザーが共有をキャンセルした場合は何もしない
+                        return;
+                    }
+                    // 共有に失敗した場合は通常のダウンロードにフォールバック
+                }
+            }
 
             const link = document.createElement("a");
-            link.setAttribute("href", dataUrl);
-            link.setAttribute("download", filename);
-            link.style.position = 'fixed';
-            link.style.top = '-9999px';
-            document.body.appendChild(link);
-            link.click();
-
-            setTimeout(() => {
-                if (link.parentNode) {
-                    document.body.removeChild(link);
-                }
-            }, 1000);
-
-            // download属性が効かない古いブラウザ向けフォールバック
-            if (!('download' in link)) {
-                window.location.href = dataUrl;
+            if (link.download !== undefined) {
+                const url = URL.createObjectURL(blob);
+                link.setAttribute("href", url);
+                link.setAttribute("download", filename);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                setTimeout(() => URL.revokeObjectURL(url), 3000);
             }
+
+            // Web Share APIが使えない環境向けに、コピー用のフォールバック画面も表示
+            showCsvExportModal(csvContent);
         }
     </script>
+
 </body>
 </html>
