@@ -994,6 +994,27 @@
             lapButton.disabled = true;
             stopButton.disabled = true;
             resetButton.disabled = true;
+            selectNextRunner();
+        }
+
+        function selectNextRunner() {
+            if (runners.length === 0) {
+                return;
+            }
+            const currentIndex = runners.findIndex(r => r.id === selectedRunnerId);
+            const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % runners.length;
+            selectedRunnerId = runners[nextIndex].id;
+            renderRunnerList();
+            renderSelectedRunnerRecords();
+            saveData();
+            scrollSelectedRunnerIntoView();
+        }
+
+        function scrollSelectedRunnerIntoView() {
+            const selectedLi = runnerListElement.querySelector('li.selected');
+            if (selectedLi) {
+                selectedLi.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            }
         }
 
         function updateTimeDisplay(milliseconds) {
