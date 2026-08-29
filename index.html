@@ -50,6 +50,8 @@
             align-items: center;
             overflow-x: hidden;
             box-sizing: border-box;
+            min-height: 100vh;
+            min-height: 100dvh;
         }
 
         .sticky-top {
@@ -80,8 +82,13 @@
             color: var(--text-color);
             margin-bottom: 8px;
             margin-top: 4px;
-            font-size: 2em;
+            font-size: clamp(1.1em, 5vw, 2em);
             letter-spacing: 0.5px;
+            padding: 0 44px;
+            box-sizing: border-box;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .main-container {
@@ -92,6 +99,8 @@
             margin: 10px auto;
             max-width: 800px;
             width: 100%;
+            flex: 1;
+            min-height: 0;
         }
 
         .column {
@@ -364,59 +373,6 @@
             color: var(--bg-color);
         }
 
-        #exportAllButton {
-            background-color: var(--export-all-btn-color);
-            color: white;
-            border: none;
-            margin-top: 15px;
-            width: 100%;
-        }
-
-        #clearAllButton {
-            background-color: var(--clear-all-btn-color);
-            color: white;
-            border: none;
-            margin-top: 10px;
-            width: 100%;
-        }
-
-        #clearRecordsButton {
-            background-color: var(--delete-btn-color);
-            color: white;
-            border: none;
-            margin-top: 10px;
-            width: 100%;
-        }
-
-        .compact-btn-row {
-            display: flex;
-            gap: 6px;
-            margin-top: 10px;
-        }
-
-        .compact-btn {
-            flex: 1;
-            padding: 6px 4px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 0.65em;
-            font-weight: 600;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 4px;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-            line-height: 1.2;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-            transition: all 0.2s ease;
-        }
-
-        .compact-btn:hover {
-            transform: translateY(-1px);
-        }
-
         /* 走者リストのタイル表示用CSS */
         .runner-list {
             flex-grow: 1;
@@ -486,7 +442,7 @@
             margin: 0;
             flex-grow: 1;
             overflow-y: auto;
-            max-height: 300px;
+            min-height: 100px;
         }
         .selected-runner-record-list::-webkit-scrollbar {
             width: 6px;
@@ -551,7 +507,12 @@
             cursor: not-allowed;
         }
 
-        /* ★記録リストの新しいレイアウト */
+        .selected-runner-list {
+            flex-grow: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+        }
         .selected-runner-record-item {
             padding: 10px 8px;
             border-bottom: 1px solid var(--border-color);
