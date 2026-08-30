@@ -1152,11 +1152,40 @@
             }, 3000);
         }
 
+        let cachedJaVoice = null;
+
+        function pickJapaneseVoice() {
+            if (cachedJaVoice) return cachedJaVoice;
+            if (!('speechSynthesis' in window)) return null;
+            const voices = window.speechSynthesis.getVoices();
+            if (!voices || voices.length === 0) return null;
+
+            // 日本語ネイティブ音声を優先し、その中でも自然な音声を優先的に選ぶ
+            const jaVoices = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith('ja'));
+            const preferredNames = ['Google 日本語', 'Kyoko', 'O-Ren', 'Microsoft Nanami', 'Microsoft Keita'];
+            let voice = jaVoices.find(v => preferredNames.some(name => v.name.includes(name)));
+            if (!voice) voice = jaVoices[0];
+            cachedJaVoice = voice || null;
+            return cachedJaVoice;
+        }
+
+        // 一部ブラウザは音声リストの読み込みが非同期のため、更新時にキャッシュをクリアする
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.addEventListener('voiceschanged', () => {
+                cachedJaVoice = null;
+            });
+        }
+
         function announceGoalTime(goalInfo) {
             const spokenText = timeToSpokenJapanese(goalInfo.time);
             const utterance = new SpeechSynthesisUtterance(spokenText);
             utterance.lang = 'ja-JP';
-            utterance.rate = 1.0;
+            utterance.rate = 0.92;
+            utterance.pitch = 1.0;
+            const voice = pickJapaneseVoice();
+            if (voice) {
+                utterance.voice = voice;
+            }
             window.speechSynthesis.cancel();
             window.speechSynthesis.speak(utterance);
         }
@@ -1170,7 +1199,7 @@
             const hundredthsStr = match[3]; // "05"や"15"のまま(先頭ゼロを保持)
 
             const digitKana = ['ゼロ', 'いち', 'に', 'さん', 'よん', 'ご', 'ろく', 'なな', 'はち', 'きゅう'];
-            const hundredthsSpoken = hundredthsStr.split('').map(d => digitKana[parseInt(d, 10)]).join('');
+            const hundredthsSpoken = hundredthsStr.split('').map(d => digitKana[parseInt(d, 10)]).join('、');
 
             let parts = [];
             if (minutes > 0) {
@@ -1178,7 +1207,7 @@
             }
             parts.push(`${seconds}秒`);
             parts.push(hundredthsSpoken);
-            return parts.join('');
+            return parts.join('、');
         }
 
         function deleteRunner(runnerId) {
