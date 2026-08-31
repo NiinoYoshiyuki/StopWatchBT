@@ -96,7 +96,7 @@
             font-size: clamp(1.1em, 5vw, 2em);
             letter-spacing: 1px;
             text-transform: uppercase;
-            padding: 0 44px;
+            padding: 0 48px 0 92px;
             box-sizing: border-box;
             white-space: nowrap;
             overflow: hidden;
@@ -220,6 +220,63 @@
             cursor: not-allowed;
             opacity: 0.7;
             box-shadow: none;
+        }
+
+        .bt-status-badge {
+            position: fixed;
+            top: 8px;
+            left: 8px;
+            z-index: 110;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 14px;
+            background-color: var(--card-bg-color);
+            border: 1px solid var(--border-color);
+            font-family: var(--font-heading);
+            font-size: 0.7em;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            color: var(--secondary-text-color);
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
+            transition: color 0.2s ease;
+        }
+
+        .bt-status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--secondary-text-color);
+            flex-shrink: 0;
+        }
+
+        .bt-status-badge.connected {
+            color: var(--led-color);
+        }
+
+        .bt-status-badge.connected .bt-status-dot {
+            background-color: var(--led-color);
+            box-shadow: 0 0 6px var(--led-color);
+            animation: bt-pulse 1.6s ease-in-out infinite;
+        }
+
+        .bt-status-badge.connecting {
+            color: var(--button-reset);
+        }
+
+        .bt-status-badge.connecting .bt-status-dot {
+            background-color: var(--button-reset);
+            animation: bt-pulse 0.8s ease-in-out infinite;
+        }
+
+        .bt-status-badge.disconnected {
+            color: var(--secondary-text-color);
+        }
+
+        @keyframes bt-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.35; }
         }
 
         #settingsButton {
@@ -672,6 +729,10 @@
     </style>
 </head>
 <body>
+    <div id="btStatusBadge" class="bt-status-badge disconnected">
+        <span class="bt-status-dot"></span>
+        <span id="btStatusText">未接続</span>
+    </div>
     <button id="settingsButton" aria-label="設定"><i class="fas fa-cog"></i></button>
     <div id="settingsMenu" class="settings-menu">
         <button id="connectButton"><i class="fas fa-bluetooth-b"></i> デバイスに接続</button>
@@ -765,6 +826,15 @@
         let selectedRunnerId = null;
 
         const connectButton = document.getElementById('connectButton');
+        const btStatusBadge = document.getElementById('btStatusBadge');
+        const btStatusText = document.getElementById('btStatusText');
+
+        function updateBtStatusBadge(state, label) {
+            // state: 'connected' | 'connecting' | 'disconnected'
+            btStatusBadge.classList.remove('connected', 'connecting', 'disconnected');
+            btStatusBadge.classList.add(state);
+            btStatusText.textContent = label;
+        }
         const settingsButton = document.getElementById('settingsButton');
         const settingsMenu = document.getElementById('settingsMenu');
         const stickyTop = document.getElementById('stickyTop');
@@ -873,6 +943,27 @@
             }
         });
 
+        // iOS Safari等では、ユーザー操作を伴わない(BLEセンサー経由や
+        // setTimeoutによる遅延)音声合成が無音になることがあるため、
+        // 画面をタップするたびに音声合成エンジンを"起こして"おく
+        let lastSpeechKeepAliveAt = 0;
+        function keepSpeechSynthesisAlive() {
+            if (!voiceAnnounceEnabled || !('speechSynthesis' in window)) return;
+            const now = Date.now();
+            if (now - lastSpeechKeepAliveAt < 5000) return;
+            lastSpeechKeepAliveAt = now;
+            window.speechSynthesis.resume();
+        }
+        document.addEventListener('touchend', keepSpeechSynthesisAlive, { passive: true });
+        document.addEventListener('click', keepSpeechSynthesisAlive);
+
+        // アプリがバックグラウンドから復帰した際も音声合成を再開しておく
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible' && voiceAnnounceEnabled && 'speechSynthesis' in window) {
+                window.speechSynthesis.resume();
+            }
+        });
+
         const csvExportOverlay = document.getElementById('csvExportOverlay');
         const csvExportTextarea = document.getElementById('csvExportTextarea');
         const csvCopyButton = document.getElementById('csvCopyButton');
@@ -945,17 +1036,20 @@
         async function startBluetoothConnectionFlow() {
             isConnecting = true;
             connectButton.textContent = "スキャン中...";
+            updateBtStatusBadge('connecting', 'スキャン中');
             try {
                 device = await navigator.bluetooth.requestDevice({
                     acceptAllDevices: true,
                     optionalServices: [SERVICE_UUID]
                 });
                 connectButton.textContent = `接続中: ${device.name || '不明なデバイス'}`;
+                updateBtStatusBadge('connecting', '接続中');
                 await connectToDevice(device);
             } catch (error) {
                 console.error(`Bluetooth接続エラー: ${error}`);
                 alert("Bluetooth接続に失敗しました。デバイスが近くにあるか、ペアリングモードになっているか確認してください。");
                 connectButton.textContent = "デバイスに接続";
+                updateBtStatusBadge('disconnected', '未接続');
                 isConnecting = false;
             }
         }
@@ -975,12 +1069,14 @@
                 isConnecting = false;
                 connectButton.textContent = "接続済み";
                 connectButton.disabled = true;
+                updateBtStatusBadge('connected', 'BT接続中');
                 console.log("接続に成功しました。センサーからの通知を待機しています。");
             } catch (error) {
                 console.error(`GATT接続エラー: ${error}`);
                 connectButton.textContent = "接続エラー";
                 isConnecting = false;
                 connectButton.disabled = false;
+                updateBtStatusBadge('disconnected', '接続エラー');
             }
         }
 
@@ -989,6 +1085,7 @@
             isConnected = false;
             connectButton.textContent = "再接続を試行中...";
             connectButton.disabled = false;
+            updateBtStatusBadge('connecting', '再接続中');
             setTimeout(() => {
                 if (!isConnecting && !isConnected) {
                     startBluetoothConnectionFlow();
@@ -1190,6 +1287,7 @@
                 utterance.voice = voice;
             }
             window.speechSynthesis.cancel();
+            window.speechSynthesis.resume();
             window.speechSynthesis.speak(utterance);
         }
 
