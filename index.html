@@ -1023,9 +1023,12 @@
                         if (tr === 2 || tr === 4) { // Lap
                             recordLapGoal("Lap");
                         } else if (tr === 8) { // GOAL_TRG
-                            recordLapGoal("Goal");
+                            const goalInfo = recordLapGoal("Goal");
                             stopStopwatch();
                             lastTr = 0; // GOAL検知後にlastTrをリセット
+                            if (goalInfo) {
+                                scheduleGoalAnnouncement(goalInfo);
+                            }
                         }
                     }
                 }
