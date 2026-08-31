@@ -33,11 +33,16 @@
             --font-primary: 'Inter', sans-serif;
             --font-heading: 'Oswald', 'Inter', sans-serif;
             --font-display: 'Roboto Mono', monospace;
+            --runner-tile-height: 44px;
         }
 
         button {
             touch-action: manipulation;
             -webkit-tap-highlight-color: transparent;
+        }
+
+        html {
+            height: 100%;
         }
 
         body {
@@ -517,50 +522,68 @@
 
         /* 走者リストのタイル表示用CSS */
         .runner-list {
-            flex-grow: 1;
+            flex-grow: 0;
+            flex-shrink: 0;
         }
         .runner-list ul {
-            display: flex;
-            flex-wrap: wrap;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            grid-auto-rows: var(--runner-tile-height);
             gap: 8px;
             list-style: none;
-            padding: 0;
+            padding: 0 2px 2px 0;
             margin: 0;
-            justify-content: flex-start;
-            max-height: 320px;
+            /* 画面上には2段までを表示し、それ以降はスクロールで対応 */
+            max-height: calc(var(--runner-tile-height) * 2 + 8px);
             overflow-y: auto;
+            align-content: start;
+        }
+        .runner-list ul::-webkit-scrollbar {
+            width: 6px;
+        }
+        .runner-list ul::-webkit-scrollbar-thumb {
+            background-color: var(--secondary-text-color);
+            border-radius: 3px;
         }
         .runner-list li {
             width: 100%;
-            padding: 20px;
+            height: var(--runner-tile-height);
+            padding: 4px 8px;
             border: 1px solid var(--border-color);
-            border-radius: 6px;
-            background-color: #383838;
+            border-radius: 8px;
+            background-color: #2C333B;
             cursor: pointer;
-            transition: background-color 0.2s, border-color 0.2s;
+            transition: background-color 0.15s, border-color 0.15s, transform 0.1s;
             text-align: center;
             display: flex;
-            flex-direction: column;
             justify-content: center;
             align-items: center;
             position: relative;
+            box-sizing: border-box;
+            overflow: hidden;
         }
 
         .runner-list li:hover {
-            background-color: var(--accent-light);
-            border-color: var(--accent-color);
+            background-color: #384049;
+            border-color: var(--secondary-text-color);
         }
         .runner-list li.selected {
-            background-color: var(--accent-color);
-            color: white;
-            border-color: var(--accent-color);
-            font-weight: 600;
+            background-color: #22D3EE;
+            border-color: #22D3EE;
+        }
+        .runner-list li.selected .runner-name {
+            color: #0A0E12;
+            font-weight: 700;
         }
 
         .runner-name {
-            font-size: 2.6em;
+            font-size: 0.95em;
             font-weight: 500;
             color: var(--text-color);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
         }
 
         .delete-btn {
@@ -583,8 +606,9 @@
             padding: 0;
             margin: 0;
             flex-grow: 1;
-            overflow-y: auto;
-            min-height: 100px;
+            overflow-y: scroll; /* スクロールバー分の幅を常に確保し、件数による幅のズレを防ぐ */
+            scrollbar-gutter: stable;
+            height: 300px; /* 件数に関わらず常に固定の高さにする */
         }
         .selected-runner-record-list::-webkit-scrollbar {
             width: 6px;
@@ -592,6 +616,9 @@
         .selected-runner-record-list::-webkit-scrollbar-thumb {
             background-color: var(--secondary-text-color);
             border-radius: 3px;
+        }
+        .selected-runner-record-list::-webkit-scrollbar-track {
+            background: transparent;
         }
 
         /* ★ヘッダーの新しいレイアウト */
@@ -611,6 +638,8 @@
             text-transform: uppercase;
             color: var(--secondary-text-color);
             margin-bottom: 5px;
+            padding-right: 6px; /* リスト側のスクロールバー分の幅と揃える */
+            box-sizing: border-box;
         }
 
         /* ヘッダーの「No」「Lap」「Goal」を個別に配置調整 */
