@@ -953,6 +953,10 @@
             if (now - lastSpeechKeepAliveAt < 5000) return;
             lastSpeechKeepAliveAt = now;
             window.speechSynthesis.resume();
+            // resume()だけでは不十分な場合があるため、実際に空の発話を
+            // speak()することでSafariの音声合成エンジンを確実に再アンロックする
+            const keepAliveUtterance = new SpeechSynthesisUtterance('');
+            window.speechSynthesis.speak(keepAliveUtterance);
         }
         document.addEventListener('touchend', keepSpeechSynthesisAlive, { passive: true });
         document.addEventListener('click', keepSpeechSynthesisAlive);
@@ -961,6 +965,8 @@
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'visible' && voiceAnnounceEnabled && 'speechSynthesis' in window) {
                 window.speechSynthesis.resume();
+                const utterance = new SpeechSynthesisUtterance('');
+                window.speechSynthesis.speak(utterance);
             }
         });
 
